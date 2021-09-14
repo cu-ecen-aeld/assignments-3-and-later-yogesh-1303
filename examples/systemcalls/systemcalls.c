@@ -1,5 +1,6 @@
 #include "systemcalls.h"
-
+#include <string.h>
+#include <syslog.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the commands in ... with arguments @param arguments were executed 
@@ -16,8 +17,18 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success 
  *   or false() if it returned a failure
 */
-
-    return true;
+    int sys;
+    sys = system(cmd);
+    if(sys == -1)
+    {
+        perror("\nError:");
+        return false;
+    }
+    else{
+        printf("\n command secceeded\n");
+        return true;
+    }
+    
 }
 
 /**
@@ -39,6 +50,7 @@ bool do_exec(int count, ...)
     va_list args;
     va_start(args, count);
     char * command[count+1];
+    int status;
     int i;
     for(i=0; i<count; i++)
     {
@@ -59,8 +71,38 @@ bool do_exec(int count, ...)
  *   
 */
 
-    va_end(args);
+    for(i=0; i<count; i++)
+    {
+        if(command[i][0] != '/')
+        {
+           if(command[i][0] != '-')
+                return false;     
+        }
+    }
+    pid_t pid;
+    pid = fork();
+    if(pid == -1)
+    {
+        perror("\ncannot create the child process\n");
+        return false;
+    }
+    else if(pid == 0)
+    {
+        execv(command[0], command);
+        exit(-1);
+    }
+    if (wait(&status) == -1)
+    {
+        printf("\nwaiting\n");
+        return false;
+    }
+    else if(WIFEXITED(status))
+    {
+        printf("\nReturned with status: %d\n", WEXITSTATUS(status));
+        return true;
+    }
 
+    va_end(args);  
     return true;
 }
 
@@ -75,6 +117,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+    //int status;
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
@@ -93,7 +136,45 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   
 */
 
+    int fd; //= open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if ((fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644)) == -1) 
+    {   
+        perror("\nfile opening error"); 
+        return false; 
+    }
+
+    
+    pid_t pid = fork();
+    syslog(LOG_INFO, "just a check fork");
+    printf("pid = %d", pid);
+    if(pid< 0)
+    {
+        perror("\nfork\n");
+        close(fd);
+        return false;
+    }
+    else if (pid == 0)
+    {
+        syslog(LOG_INFO, "just a check pid0 %d", pid);
+        dup2(fd,1);
+        int ret;
+        
+        if((ret=execv(command[0], command)) == -1)
+        {
+            perror("execv");
+            close(fd);
+            return false;
+        }   
+    }
+    int status;
+    wait(&status);
+    close(fd);
+
     va_end(args);
     
     return true;
 }
+
+
+
+
