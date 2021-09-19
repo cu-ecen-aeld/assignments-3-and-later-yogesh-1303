@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 filesdir=$1
 searchstr=$2
 cd
@@ -10,7 +10,7 @@ if [ "$#" -ne 2 ] ; then
 else	
 	if [ -d "${filesdir}" ] ; then
 		cd "${filesdir}"
-		numlines=$(sudo grep -x -r "${searchstr}" * | wc -l)
+		numlines=$(grep -x -r "${searchstr}" * | wc -l)
 		numfiles=$(grep -l -Rx "${filesdir}" -e "${searchstr}" | wc -l)
 		echo "The number of files are ${numfiles} and the number of matching lines are ${numlines}"
 	else
