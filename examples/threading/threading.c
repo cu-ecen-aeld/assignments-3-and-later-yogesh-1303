@@ -35,14 +35,15 @@ void wait(int ms_wait)
 
 void* threadfunc(void* thread_param)
 {
-    struct thread_data *data = (struct thread_data *) thread_param;
+    struct thread_data *func_data = (struct thread_data *) thread_param;
     // TODO: wait, obtain mutex, wait, release mutex as described by thread_data structure
-    ERROR_LOG("thread check\n");
-    wait(data->obtain_wait);
+    printf("thread check\n");
+    pthread_mutex_init(&func_data->mutex_lock, NULL);
+    wait(func_data->obtain_wait);
     //ERROR_LOG("obtain wait; %d\n", data->obtain_wait); 
-    pthread_mutex_lock(&data->mutex_lock);
-    wait(data->release_wait);
-    pthread_mutex_unlock(&data->mutex_lock); 
+    pthread_mutex_lock(&func_data->mutex_lock);
+    wait(func_data->release_wait);
+    pthread_mutex_unlock(&func_data->mutex_lock); 
      
     //ERROR_LOG("thread area\n"); 
     // hint: use a cast like the one below to obtain thread arguments from your parameter
@@ -61,7 +62,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
      * 
      * See implementation details in threading.h file comment block
      */
-    
+     
      struct thread_data *data = malloc(sizeof(struct thread_data));
      if(data == NULL)
         ERROR_LOG("mallock\n");
@@ -70,8 +71,10 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
       data->obtain_wait = wait_to_obtain_ms;
       data->release_wait = wait_to_release_ms;
 
+      
+
      int create;
-     create = pthread_create(thread, NULL, &threadfunc, data);
+     create = pthread_create(thread, NULL, threadfunc, data);
      if(create != 0)
      {
          ERROR_LOG("thread not created\n");
@@ -83,7 +86,7 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
         ERROR_LOG("thread executed successfully\n"); 
      }
 
-     pthread_join(data->thread_1, NULL);
+     //pthread_join(data->thread_1, NULL);
     return  data->thread_complete_success;
 }
 
