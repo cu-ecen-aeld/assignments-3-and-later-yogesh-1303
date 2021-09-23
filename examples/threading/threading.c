@@ -11,9 +11,11 @@
 //#define DEBUG_LOG(msg,...) printf("threading: " msg "\n" , ##__VA_ARGS__)
 #define ERROR_LOG(msg,...) printf("threading ERROR: " msg "\n" , ##__VA_ARGS__)
 
+//int thread_num=0;
 
 //pthread_t thread;
-//pthread_mutex_t mutex;
+// pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
+//pthread_mutex_init(mutex_lock);
 
 
 //delays by ms_wait milliseconds
@@ -33,17 +35,19 @@ void wait(int ms_wait)
     while(((clock() - time)/1000) != ms_wait); //seconds to ms
 }
 
+
+
 void* threadfunc(void* thread_param)
 {
     struct thread_data *func_data = (struct thread_data *) thread_param;
     // TODO: wait, obtain mutex, wait, release mutex as described by thread_data structure
-    printf("thread check\n");
-    pthread_mutex_init(&func_data->mutex_lock, NULL);
+    printf("thread_id = %lu\n", func_data->thread_id);
+    pthread_mutex_init(func_data->mutex_lock, NULL);
+    // func_data->mutex_lock = PTHREAD_MUTEX_INITIALIZER;
     wait(func_data->obtain_wait);
-    //ERROR_LOG("obtain wait; %d\n", data->obtain_wait); 
-    pthread_mutex_lock(&func_data->mutex_lock);
+    pthread_mutex_lock(func_data->mutex_lock);
     wait(func_data->release_wait);
-    pthread_mutex_unlock(&func_data->mutex_lock); 
+    pthread_mutex_unlock(func_data->mutex_lock); 
      
     //ERROR_LOG("thread area\n"); 
     // hint: use a cast like the one below to obtain thread arguments from your parameter
@@ -63,40 +67,40 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
      * See implementation details in threading.h file comment block
      */
      
-     struct thread_data *data = malloc(sizeof(struct thread_data));
+     //allocating dynamic memory to the data structure
+     struct thread_data *data = (struct thread_data *) malloc(sizeof(struct thread_data));
      if(data == NULL)
         ERROR_LOG("mallock\n");
-      data->thread_1 = *thread;
-      data->mutex_lock =  *mutex;
+      
+      data->thread_id = *thread;
+      data->mutex_lock =  mutex;
       data->obtain_wait = wait_to_obtain_ms;
       data->release_wait = wait_to_release_ms;
 
+      printf("thread_id starter func= %lu\n", data->thread_id);
       
-
+    
      int create;
-     create = pthread_create(thread, NULL, threadfunc, data);
+     create = pthread_create(thread, NULL, threadfunc, (void *)data);
      if(create != 0)
      {
          ERROR_LOG("thread not created\n");
-         data->thread_complete_success = false;
+         //data->thread_complete_success = false;
      }
      else
      {
-        data->thread_complete_success = true;
         ERROR_LOG("thread executed successfully\n"); 
      }
-
-     //pthread_join(data->thread_1, NULL);
-    return  data->thread_complete_success;
+     //return data->thread_complete_success;
+     pthread_exit((void *)data);
+     if(data->thread_complete_success == true)
+     {
+         free(data);
+         return true;
+     }
+     else
+     {
+         free(data);
+         return  false;
+     }
 }
-
-// pthread_t thread_g;
-// pthread_mutex_t mutex_g;
-
-// int main()
-// {
-//     int time;
-//     bool ret = start_thread_obtaining_mutex(&thread_g, &mutex_g, 100, 100);
-//     return 0;
-// }
-

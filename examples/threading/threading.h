@@ -14,8 +14,8 @@ struct thread_data{
      * between the start_thread_obtaining_mutex function and
      * your thread implementation.
      */
-     pthread_t thread_1;
-     pthread_mutex_t mutex_lock;
+     pthread_t thread_id;
+     pthread_mutex_t *mutex_lock;
      int obtain_wait;
      int release_wait;
  
