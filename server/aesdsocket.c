@@ -82,50 +82,60 @@ int main()
 
 	freeaddrinfo(res);
 	freeaddrinfo(p);
-
-	//receive from the client
-	//char buf[10];
-	char *buf = (char *) malloc(10);
-	int rc;
-	if((rc=recv(new_fd, buf, 10, 0)) == -1)
-	{
-		perror("\nreceive");	
-		close(new_fd);
-		close(socketfd);
-		return -1;
-	}
-	else
-	{
-		printf("\nrc: %d\n", rc);
-		puts(buf);
-	}
-
+	remove("/var/tmp/aesdsocketdata.txt");
 	//open the file 
 	int fd;
 	fd = open("/var/tmp/aesdsocketdata.txt", O_RDWR | O_CREAT | O_APPEND, 0777);
 	if(fd == -1)
 	{
 		perror("\nfile open");
-		return -1;
+		return(-1);
 	}
 
-	//write to the file
-	if(write(fd, buf, 10) == -1)
-	{
-		perror("\nwrite");
-		close(new_fd);
-		close(socketfd);
-		return -1;
-	}
+	//receive from the client
+	//char buf[10];
+	char *buf = (char *) malloc(10);
+	int rc, count=0;
+	if((rc=recv(new_fd, buf, 10, 0)) == -1)
+		{
+			perror("\nreceive");	
+			close(new_fd);
+			close(socketfd);
+			return -1;
+		}
 	else
 	{
-		printf("\nwritten succesfully");
+		printf("\nrc: %d\n", rc);
+		puts(buf);
 	}
-
+	for(int i=0; i<10; i++)
+	{
+		if(*(buf + i) == '\0')
+		{
+			//write to the file
+			if((write(fd, buf, i)) == -1)
+			{
+				perror("\nwrite");
+				close(new_fd);
+				close(socketfd);
+				return -1;
+				break;
+			}
+			else
+			{
+				printf("\nwritten succesfully");
+				break;
+			}
+		}
+		else
+			continue;
+	}
+	
 	//read from the file to send back the content
-	lseek(fd, 10, SEEK_SET);
+	off_t file_size = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
 	char *send_buf = (char *) malloc(10);
-	if(read(fd, send_buf, 10) == -1)
+	if(read(fd, send_buf, file_size) == -1)
 	{
 		perror("\nread");
 		close(new_fd);
@@ -139,7 +149,7 @@ int main()
 	}
 
 	//send back to the client
-	if(send(new_fd, send_buf, 10, 0) == -1)
+	if(send(new_fd, send_buf, file_size, 0) == -1)
 	{
 		perror("\nsend");
 		close(new_fd);
@@ -151,7 +161,7 @@ int main()
 		printf("\nbuffer send");
 	}
 
-	remove("/var/tmp/aesdsocketdata.txt");
+	//remove("/var/tmp/aesdsocketdata.txt");
 	close(fd);
 	close(new_fd);
 	close(socketfd);
