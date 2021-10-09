@@ -14,6 +14,7 @@
 
 #define BACKLOG (10)
 #define PORT "9000"
+#define MY_MAX_SIZE 500
 
 int main()
 {
@@ -69,101 +70,126 @@ int main()
 	struct sockaddr_storage client_addr;	
 	socklen_t addr_size = sizeof(client_addr);
 	int new_fd;
-	if((new_fd = accept(socketfd, (struct sockaddr *)&client_addr, &addr_size)) == -1 )
-	{
-		perror("\naccept");
-		return -1;	
-	}
-	else
-	{
-		printf("Connected with the IP: ");
-		puts(ipstr);
-	}
 
-	freeaddrinfo(res);
-	freeaddrinfo(p);
-	remove("/var/tmp/aesdsocketdata.txt");
-	//open the file 
+	//allocating memory to the buffers to be used
+	//char *buf = (char *) malloc(MY_MAX_SIZE);
+	char *rem_buf = (char *) malloc(MY_MAX_SIZE);
+	char *send_buf = (char *) malloc(MY_MAX_SIZE);
+	int i;
 	int fd;
-	fd = open("/var/tmp/aesdsocketdata.txt", O_RDWR | O_CREAT | O_APPEND, 0777);
-	if(fd == -1)
-	{
-		perror("\nfile open");
-		return(-1);
-	}
 
-	//receive from the client
-	//char buf[10];
-	char *buf = (char *) malloc(10);
-	int rc, count=0;
-	if((rc=recv(new_fd, buf, 10, 0)) == -1)
+	//execute this loop until the SIGINTor SIGTERM syscall is encountered 
+	while(1)
+	{
+		char *buf = (char *) malloc(MY_MAX_SIZE);
+		
+		//accept the connection from the client
+		if((new_fd = accept(socketfd, (struct sockaddr *)&client_addr, &addr_size)) == -1 )
 		{
-			perror("\nreceive");	
-			close(new_fd);
-			close(socketfd);
-			return -1;
+			perror("\naccept");
+			return -1;	
 		}
-	else
-	{
-		printf("\nrc: %d\n", rc);
-		puts(buf);
-	}
-	for(int i=0; i<10; i++)
-	{
-		if(*(buf + i) == '\0')
+		else
 		{
-			//write to the file
-			if((write(fd, buf, i)) == -1)
+			printf("Connected with the IP: ");
+			puts(ipstr);
+		}
+
+		//open the file
+		fd = open("/var/tmp/aesdsocketdata.txt", O_RDWR | O_CREAT | O_APPEND, 0777);
+		if(fd == -1)
+		{
+			perror("\nfile open");
+			return(-1);
+		} 
+		
+		//receive from the client
+		int rc, count=0;
+		if((rc=recv(new_fd, buf, MY_MAX_SIZE, 0)) == -1)
 			{
-				perror("\nwrite");
+				perror("\nreceive");	
 				close(new_fd);
 				close(socketfd);
 				return -1;
-				break;
+			}
+		else
+		{
+			printf("\nrc: %d\n, received buffers: ", rc);
+			puts(buf);
+		}
+
+		//search for the \n character (if present, write, else reallocate the buffer extra size)
+		int n=1;
+		for(i=0; i<MY_MAX_SIZE; i++)
+		{
+			if(*(buf + (MY_MAX_SIZE*(n-1)) + i) == '\n')
+			{
+				//write to the file
+				if((write(fd, buf, i+1)) == -1)
+				{
+					perror("\nwrite");
+					close(new_fd);
+					close(socketfd);
+					return -1;
+				}
+				else
+				{
+					printf("\nwritten succesfully");
+					break;
+				}
 			}
 			else
 			{
-				printf("\nwritten succesfully");
-				break;
+				if(i == (MY_MAX_SIZE-1))
+				{
+					n++;
+					i=0;
+					buf = realloc(buf, (MY_MAX_SIZE*n));
+				}
 			}
 		}
-		else
-			continue;
-	}
-	
-	//read from the file to send back the content
-	off_t file_size = lseek(fd, 0, SEEK_END);
-	lseek(fd, 0, SEEK_SET);
-	char *send_buf = (char *) malloc(10);
-	if(read(fd, send_buf, file_size) == -1)
-	{
-		perror("\nread");
-		close(new_fd);
-		close(socketfd);
-		return -1;
-	}
-	else
-	{
-		printf("\nsending buf: ");
-		puts(send_buf);
-	}
+			//strcpy(rem_buf, buf+i+1);
 
-	//send back to the client
-	if(send(new_fd, send_buf, file_size, 0) == -1)
-	{
-		perror("\nsend");
-		close(new_fd);
-		close(socketfd);
-		return -1;
-	}
-	else
-	{
-		printf("\nbuffer send");
-	}
+			//read from the file to send back the content
+			off_t file_size = lseek(fd, 0, SEEK_END);
+			lseek(fd, 0, SEEK_SET);
+			if(read(fd, send_buf, file_size) == -1)
+			{
+				perror("\nread");
+				close(new_fd);
+				close(socketfd);
+				return -1;
+			}
+			else
+			{
+				printf("\nsending buf: ");
+				puts(send_buf);
+			}
+			lseek(fd, 0, SEEK_END);
 
+			//send back to the client
+			if(send(new_fd, send_buf, file_size, 0) == -1)
+			{
+				perror("\nsend");
+				close(new_fd);
+				close(socketfd);
+				return -1;
+			}
+			else
+			{
+				printf("\nbuffer send");
+			}
+			free(buf);
+	}
 	//remove("/var/tmp/aesdsocketdata.txt");
+	
+	free(send_buf);
+	//free(backup_buf);
 	close(fd);
 	close(new_fd);
 	close(socketfd);
+	
+	freeaddrinfo(res);
+	freeaddrinfo(p);
 	return 0;
 }
