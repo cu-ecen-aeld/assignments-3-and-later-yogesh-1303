@@ -74,7 +74,7 @@ int main()
 	//allocating memory to the buffers to be used
 	//char *buf = (char *) malloc(MY_MAX_SIZE);
 	char *rem_buf = (char *) malloc(MY_MAX_SIZE);
-	char *send_buf = (char *) malloc(MY_MAX_SIZE);
+	
 	int i;
 	int fd;
 
@@ -82,7 +82,7 @@ int main()
 	while(1)
 	{
 		char *buf = (char *) malloc(MY_MAX_SIZE);
-		
+		char *send_buf = (char *) malloc(MY_MAX_SIZE);
 		//accept the connection from the client
 		if((new_fd = accept(socketfd, (struct sockaddr *)&client_addr, &addr_size)) == -1 )
 		{
@@ -95,6 +95,7 @@ int main()
 			puts(ipstr);
 		}
 
+		//remove("/var/tmp/aesdsocketdata.txt");
 		//open the file
 		fd = open("/var/tmp/aesdsocketdata.txt", O_RDWR | O_CREAT | O_APPEND, 0777);
 		if(fd == -1)
@@ -125,7 +126,7 @@ int main()
 			if(*(buf + (MY_MAX_SIZE*(n-1)) + i) == '\n')
 			{
 				//write to the file
-				if((write(fd, buf, i+1)) == -1)
+				if((write(fd, buf, (MY_MAX_SIZE*(n-1))+i+1)) == -1)
 				{
 					perror("\nwrite");
 					close(new_fd);
@@ -134,7 +135,9 @@ int main()
 				}
 				else
 				{
-					printf("\nwritten succesfully");
+					printf("\ncontent written to file:\n");
+					puts(buf);
+					//write(fd, "\n", 1); 
 					break;
 				}
 			}
@@ -142,48 +145,71 @@ int main()
 			{
 				if(i == (MY_MAX_SIZE-1))
 				{
+					printf("\n\nbuffer full, reloading the buffer\n\n");
 					n++;
 					i=0;
 					buf = realloc(buf, (MY_MAX_SIZE*n));
+					if((rc=recv(new_fd, buf+(MY_MAX_SIZE*(n-1)), MY_MAX_SIZE, 0)) == -1)
+					{
+						perror("\nreceive");	
+						close(new_fd);
+						close(socketfd);
+						return -1;
+					}
+					else
+					{
+						printf("\nrc: %d\n, received buffers: \n", rc);
+						puts(buf);
+					}
 				}
 			}
 		}
 			//strcpy(rem_buf, buf+i+1);
 
-			//read from the file to send back the content
-			off_t file_size = lseek(fd, 0, SEEK_END);
-			lseek(fd, 0, SEEK_SET);
-			if(read(fd, send_buf, file_size) == -1)
+		//read from the file to send back the content
+		off_t file_size = lseek(fd, 0, SEEK_END);
+		lseek(fd, 0, SEEK_SET);
+		int rd,sd;
+
+		/************************************************
+		if file size < MAX buf size
+			read the whole file size
+		else if the file size > MAx buf size
+			read MAX buf size at a time until EOF is reached
+		**************************************************/
+		while(1)
+		{
+			if(file_size <= MY_MAX_SIZE)
 			{
-				perror("\nread");
-				close(new_fd);
-				close(socketfd);
-				return -1;
+				//read the data
+				rd = read(fd, send_buf, file_size);
+				//send the data
+				sd = send(new_fd, send_buf, file_size, 0);
+				break;
 			}
-			else
-			{
-				printf("\nsending buf: ");
+			else if(file_size > MY_MAX_SIZE)
+			{	
+				//printf("\nwhen file size is greater than max size\n");
+				//read the data
+				rd = read(fd, send_buf, MY_MAX_SIZE);
+				if(rd == 0)
+					break;
+				//send the data
+				if(rd < MY_MAX_SIZE)
+					sd = send(new_fd, send_buf, rd, 0);
+				else
+					sd = send(new_fd, send_buf, MY_MAX_SIZE, 0);
+				printf("\ncontents send:\n");
 				puts(send_buf);
 			}
-			lseek(fd, 0, SEEK_END);
-
-			//send back to the client
-			if(send(new_fd, send_buf, file_size, 0) == -1)
-			{
-				perror("\nsend");
-				close(new_fd);
-				close(socketfd);
-				return -1;
-			}
-			else
-			{
-				printf("\nbuffer send");
-			}
-			free(buf);
+		}		
+		
+		free(buf);
+		free(send_buf);
 	}
 	//remove("/var/tmp/aesdsocketdata.txt");
 	
-	free(send_buf);
+	
 	//free(backup_buf);
 	close(fd);
 	close(new_fd);
