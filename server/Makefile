@@ -1,4 +1,4 @@
-CC = gcc
+CC = $(CROSS_COMPILE)gcc
 
 aesdsocket: aesdsocket.o
 	$(CC) -o aesdsocket aesdsocket.o
